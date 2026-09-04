@@ -1,74 +1,95 @@
 #include <stdio.h>
-#include <limits.h>
-#include <stdbool.h>
 #include <string.h>
-#include "../include/graph.h"
+#include <stdlib.h>
+#include <limits.h>
+#include "project.h"
 
-void initializeGraph(int adj[MAX_CITIES][MAX_CITIES], int n) {
-    for (int i = 0; i < n; i++) {
-        for (int j = 0; j < n; j++) {
-            if (i == j)
-                adj[i][j] = 0;
-            else
-                adj[i][j] = INF;
-        }
-    }
-}
+#define MAX_LINE 100
+#define MAX_NAME 50
 
-void addEdge(int adj[MAX_CITIES][MAX_CITIES], int u, int v, int w) {
-    adj[u][v] = w;
-    adj[v][u] = w;  // Assuming undirected graph
-}
-
-void dijkstra(int adj[MAX_CITIES][MAX_CITIES], int n, int start, int end, char cityNames[MAX_CITIES][MAX_NAME_LENGTH]) {
-    int dist[MAX_CITIES];
-    bool visited[MAX_CITIES];
-    int prev[MAX_CITIES];
-
-    for (int i = 0; i < n; i++) {
-        dist[i] = INF;
-        visited[i] = false;
-        prev[i] = -1;
+void getgraph(int map_no, int src, int end, char *description) {
+    FILE *file = fopen("graph_1.txt", "r");
+    if (file == NULL) {
+        printf("Could not open file.\n");
+        exit(2);
     }
 
-    dist[start] = 0;
+    char line[MAX_LINE];
+    int size = 0, found = 0;
 
-    for (int count = 0; count < n - 1; count++) {
-        int min = INF, u = -1;
-        for (int i = 0; i < n; i++) {
-            if (!visited[i] && dist[i] <= min) {
-                min = dist[i];
-                u = i;
-            }
-        }
-
-        if (u == -1) break;
-        visited[u] = true;
-
-        for (int v = 0; v < n; v++) {
-            if (!visited[v] && adj[u][v] != INF && dist[u] + adj[u][v] < dist[v]) {
-                dist[v] = dist[u] + adj[u][v];
-                prev[v] = u;
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "# Graph", 7) == 0) {
+            int gnum;
+            sscanf(line, "# Graph %d", &gnum);
+            if (gnum == map_no) {
+                found = 1;
+                break;
             }
         }
     }
 
-    if (dist[end] == INF) {
-        printf("No path exists between %s and %s\n", cityNames[start], cityNames[end]);
+    if (!found) {
+        printf("Graph not found.\n");
+        fclose(file);
         return;
     }
 
-    // Reconstruct path
-    int path[MAX_CITIES];
-    int count = 0;
-    for (int v = end; v != -1; v = prev[v]) {
-        path[count++] = v;
+    fscanf(file, "%d\n", &size);
+
+    if (src >= size || end >= size || src < 0 || end < 0) {
+        printf("Invalid source or destination for the selected graph.\n");
+        fclose(file);
+        return;
     }
 
-    printf("Shortest path from %s to %s is: ", cityNames[start], cityNames[end]);
-    for (int i = count - 1; i >= 0; i--) {
-        printf("%s", cityNames[path[i]]);
-        if (i != 0) printf(" -> ");
+
+    int **graph = (int **)malloc(size * sizeof(int *));
+    char **names = (char **)malloc(size * sizeof(char *));
+    for (int i = 0; i < size; i++) {
+        graph[i] = (int *)malloc(size * sizeof(int));
+        names[i] = (char *)malloc(MAX_NAME * sizeof(char));
     }
-    printf("\nTotal distance: %d\n", dist[end]);
+
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "# Names", 7) == 0) break;
+    }
+
+
+    for (int i = 0; i < size; i++) {
+        fgets(line, sizeof(line), file);
+        line[strcspn(line, "\n")] = 0;
+        strcpy(names[i], line);
+    }
+
+
+    while (fgets(line, sizeof(line), file)) {
+        if (strncmp(line, "# Matrix", 8) == 0) break;
+    }
+
+
+    for (int i = 0; i < size; i++) {
+        for (int j = 0; j < size; j++) {
+            fscanf(file, "%d", &graph[i][j]);
+        }
+    }
+
+    fclose(file);
+
+
+    int dist[size];
+    int final_dist = DijkstrasAlgo(size, graph, names, src, end, dist);
+
+
+    if (final_dist != INT_MAX) {
+        addDeliveryDetail(map_no, src, end, final_dist, names, description);
+    }
+
+
+    for (int i = 0; i < size; i++) {
+        free(graph[i]);
+        free(names[i]);
+    }
+    free(graph);
+    free(names);
 }
